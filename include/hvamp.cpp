@@ -9,7 +9,8 @@ Vamp host SDK.
 */
 
 #include "hvamp.h"
-#include "vamp-hostsdk.h"
+#include "vamp-hostsdk/PluginLoader.h"
+#include "vamp/vamp.h"
 
 extern "C" {
     int hvamp_list_plugins(char **plugin_key_t) {
