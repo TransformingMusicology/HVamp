@@ -3,6 +3,7 @@ version: 0.1
 synopsis: A Vamp host in Haskell
 homepage: http://code.ismsgroup.net/hvamp/
 author: Richard Lewis
+license: LGPL
 build-type: Simple
 cabal-version: >= 1.8
 
