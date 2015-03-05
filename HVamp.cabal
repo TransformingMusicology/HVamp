@@ -4,13 +4,16 @@ synopsis: A Vamp host in Haskell
 homepage: http://code.ismsgroup.net/hvamp/
 author: Richard Lewis
 license: LGPL
-build-type: Simple
+build-type: Custom
 cabal-version: >= 1.8
 
 library
-  build-depends: base, vector
+  build-depends: base, vector, transformers, async, parallel
   exposed-modules: HVamp
   other-modules: Vamp
   hs-source-dirs: src
+  x-cpp-sources: c-src/hvamp.cpp
   include-dirs: include
-  ghc-options: -Wall
+  extra-libraries: stdc++, dl, vamp-hostsdk
+  ghc-options: -pgml g++ -Wall
+  ld-options: -lhvamp

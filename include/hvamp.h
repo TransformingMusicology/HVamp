@@ -28,4 +28,22 @@ along with HVamp. If not, see <http://www.gnu.org/licenses/>.
 
 #include "vamp/vamp.h"
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif //__cplusplus
+
+typedef char* plugin_key_t;
+
+typedef struct vamp_plugin {} vamp_plugin_t;
+
+const char ** hvamp_list_plugins();
+const char * hvamp_plugin_key(const char *filepath, const char *identifier);
+const char * hvamp_plugin_path(const plugin_key_t key);
+const char ** hvamp_plugin_category(const plugin_key_t key);
+VampPluginHandle * hvamp_load_plugin(const plugin_key_t key, float input_sample_rate, int adapter_flags);
+
+#ifdef __cplusplus
+}
+#endif //__cplusplus
 #endif //_HVAMP_VAMP_SDK_H_

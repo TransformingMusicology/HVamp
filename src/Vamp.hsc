@@ -52,6 +52,7 @@ import Foreign.C.String
 import qualified Data.Vector.Storable as DV
 
 #include "hvamp.h"
+#include "vamp/vamp.h"
 
 data HVParameterDescriptor = HVParameterDescriptor {
   pdIdentifier   :: String,
