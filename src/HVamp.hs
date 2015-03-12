@@ -30,6 +30,7 @@ import Vamp
 import Foreign
 import Foreign.C.Types
 import Foreign.C.String
+import Foreign.Marshal.Array
 
 type PluginCategory = String
 type PluginKey = String
@@ -39,10 +40,18 @@ data Plugin = Plugin
 
 -- PluginLoader.h: PluginLoader::listPlugings
 foreign import ccall unsafe "vamp.h hvamp_list_plugins"
-  c_list_plugins :: IO (Ptr CString)
+  c_list_plugins :: IO (Ptr (Ptr CChar))
+
+foreign import ccall unsafe "vamp.h hvamp_free_plugin_list"
+  c_free_plugin_list :: (Ptr (Ptr CChar)) -> IO ()
 
 listPlugins :: IO [PluginKey]
-listPlugins = undefined
+listPlugins = do
+  l <- c_list_plugins
+  ptrs <- peekArray0 nullPtr l
+  keys <- mapM peekCString ptrs
+  c_free_plugin_list l
+  return keys
 
 -- PluginLoader.h: PluginLoader::composePluginKey
 foreign import ccall unsafe "vamp.h hvamp_plugin_key"

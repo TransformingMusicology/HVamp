@@ -26,15 +26,32 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "vamp/vamp.h"
 #include <vector>
 #include <string>
+#include <iostream>
+#include <string.h>
 
-const char ** hvamp_list_plugins() {
-    const char **keys;
+char ** hvamp_list_plugins() {
     Vamp::HostExt::PluginLoader* loader = Vamp::HostExt::PluginLoader::getInstance();
     Vamp::HostExt::PluginLoader::PluginKeyList list = loader->listPlugins();
-    for (std::vector<Vamp::HostExt::PluginLoader::PluginKey>::size_type i = 0; i != list.size(); i++) {
-        keys[0] = list[i].c_str();
+
+    char **keys = new char *[list.size() + 1];
+    std::vector<Vamp::HostExt::PluginLoader::PluginKey>::size_type i = 0;
+    for (i = 0; i != list.size(); i++) {
+        keys[i] = new char[list[i].size() + 1];
+        strcpy(keys[i], list[i].c_str());
     }
+    keys[i++] = NULL;
+
     return keys;
+}
+
+void hvamp_free_plugin_list(char ** keys) {
+  if (keys == NULL) return;
+  char **l = keys;
+  while (*l != NULL) {
+    delete [] *l;
+    *l++;
+  }
+  delete [] keys;
 }
 
 const char * hvamp_plugin_key(const char *filepath, const char *identifier) {

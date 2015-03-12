@@ -37,7 +37,8 @@ typedef char* plugin_key_t;
 
 typedef struct vamp_plugin {} vamp_plugin_t;
 
-const char ** hvamp_list_plugins();
+char ** hvamp_list_plugins();
+void hvamp_free_plugin_list(char ** keys);
 const char * hvamp_plugin_key(const char *filepath, const char *identifier);
 const char * hvamp_plugin_path(const plugin_key_t key);
 const char ** hvamp_plugin_category(const plugin_key_t key);
