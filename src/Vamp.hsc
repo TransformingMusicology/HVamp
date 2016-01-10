@@ -22,7 +22,7 @@
 module Vamp ( HVPluginHandle
             , HVPluginDescriptor
             , HVPluginDescriptorPtr
-            , c_vampGetPluginDescriptor
+            , pldName
             , pluginInstantiate
             , pluginCleanup
             , pluginInitialise
@@ -44,14 +44,15 @@ module Vamp ( HVPluginHandle
             )
        where
 
-import Data.List (intercalate)
-import Data.Char (chr)
-import Foreign
-import Foreign.C.Types
-import Foreign.C.String
+import           Data.Char (chr)
+import           Data.List (intercalate)
 import qualified Data.Vector.Storable as DV
+import           Foreign
+import           Foreign.C.String
+import           Foreign.C.Types
 
-#include "hvamp.h"
+#include "vamp/vamp.h"
+#include "vamp-hostsdk/host-c.h"
 
 data HVParameterDescriptor = HVParameterDescriptor {
   pdIdentifier   :: String,
@@ -228,11 +229,10 @@ foreign import ccall "dynamic"
 
 type HVGetPluginDescriptor = FunPtr (CUInt -> CUInt -> IO HVPluginDescriptorPtr)
 
-foreign import ccall "vamp.h vampGetPluginDescriptor"
-  c_vampGetPluginDescriptor :: CUInt -> CUInt -> IO HVPluginDescriptorPtr
-
-splitCStrL :: Ptr CChar -> Int -> IO [String]
-splitCStrL p n = splt p []
+splitCStrL :: Int -> Ptr CChar -> IO [String]
+splitCStrL n p
+  | p == nullPtr = return []
+  | otherwise = splt p []
   where
     splt :: Ptr CChar -> [String] -> IO [String]
     splt ptr acc = do
@@ -241,12 +241,14 @@ splitCStrL p n = splt p []
       return (reverse l)
 
 splitCStrL0 :: Ptr CChar -> IO [String]
-splitCStrL0 p = splt p []
+splitCStrL0 p
+  | p == nullPtr = return []
+  | otherwise = splt p []
   where
     splt :: Ptr CChar -> [String] -> IO [String]
     splt ptr acc = do
       s <- peekCString ptr
-      l <- if ptr == nullPtr then return acc else splt (ptr `plusPtr` (length s)) (s : acc)
+      l <- if ptr == nullPtr || s == "" then return acc else splt (ptr `plusPtr` (length s)) (s : acc)
       return (reverse l)
 
 joinCStrL :: [String] -> IO CString
@@ -259,15 +261,19 @@ isTrueCInt :: CInt -> IO Bool
 isTrueCInt i = do
   return (i == (1 :: CInt))
 
+peekCStringOrEmpty :: CString -> IO String
+peekCStringOrEmpty c = if c == nullPtr then return "" else peekCString c
+
 instance Storable HVParameterDescriptor where
   alignment _ = alignment (undefined :: CFloat)
   sizeOf _    = #{size VampParameterDescriptor}
 
   peek pd = do
-    identifier'  <- (#peek VampParameterDescriptor, identifier) pd  >>= peekCString
-    name'        <- (#peek VampParameterDescriptor, name) pd        >>= peekCString
-    description' <- (#peek VampParameterDescriptor, description) pd >>= peekCString
-    unit'        <- (#peek VampParameterDescriptor, unit) pd        >>= peekCString
+
+    identifier'  <- (#peek VampParameterDescriptor, identifier) pd  >>= peekCStringOrEmpty
+    name'        <- (#peek VampParameterDescriptor, name) pd        >>= peekCStringOrEmpty
+    description' <- (#peek VampParameterDescriptor, description) pd >>= peekCStringOrEmpty
+    unit'        <- (#peek VampParameterDescriptor, unit) pd        >>= peekCStringOrEmpty
 
     minValue'     <- fmap realToFrac (((#peek VampParameterDescriptor, minValue) pd) :: IO CFloat)
     maxValue'     <- fmap realToFrac (((#peek VampParameterDescriptor, maxValue) pd) :: IO CFloat)
@@ -458,9 +464,16 @@ instance Storable HVFeatureList where
 
   poke _ _ = error "Cannot poke a HVFeatureList"
 
+peekArrayPtrs :: Storable a => Int -> Ptr (Ptr a) -> IO [a]
+peekArrayPtrs size ptr | size <= 0 = return []
+                       | otherwise = f (size-1) []
+  where
+    f 0 acc = do ePtr <- peekElemOff ptr 0; e <- peek ePtr; return (e:acc)
+    f n acc = do ePtr <- peekElemOff ptr n; e <- peek ePtr; f (n-1) (e:acc)
+
 instance Storable HVPluginDescriptor where
   alignment _ = alignment (undefined :: CFloat)
-  sizeOf _    = #{size VampFeatureList}
+  sizeOf _    = #{size VampPluginDescriptor}
 
   peek pld = do
     apiVersion' <- fmap fromIntegral (((#peek VampPluginDescriptor, vampApiVersion) pld) :: IO CUInt)
@@ -473,10 +486,12 @@ instance Storable HVPluginDescriptor where
     copyright'     <- (#peek VampPluginDescriptor, copyright) pld   >>= peekCString
 
     parameterCount' <- fmap fromIntegral (((#peek VampPluginDescriptor, parameterCount) pld) :: IO CUInt)
-    parameters'     <- (((#peek VampPluginDescriptor, parameterCount) pld) :: IO HVParameterDescriptorPtr) >>= peekArray parameterCount'
+    parameters'     <- if parameterCount' > 0
+                       then (((#peek VampPluginDescriptor, parameters) pld) :: IO (Ptr HVParameterDescriptorPtr)) >>= peekArrayPtrs parameterCount'
+                       else return []
 
     programCount' <- fmap fromIntegral (((#peek VampPluginDescriptor, programCount) pld) :: IO CUInt)
-    programs'     <- ((#peek VampPluginDescriptor, programCount) pld) >>= peekArray parameterCount' >>= mapM peekCString
+    programs'     <- ((#peek VampPluginDescriptor, programs) pld) >>= splitCStrL programCount'
 
     inputDomainInt   <- ((#peek VampPluginDescriptor, inputDomain) pld) :: IO CInt
     let inputDomain' = HVInputDomain { unHVInputDomain = inputDomainInt }

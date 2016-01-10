@@ -20,26 +20,47 @@
 
 module HVamp where
 
-data PluginCategory = PluginCategory
+import Control.Applicative
+import Control.Exception (bracket)
+import Data.Traversable (traverse)
+import Foreign
+import Foreign.C.String
+import Foreign.Storable (peek)
+import Host
+import Vamp
 
-type PluginKey = String
+type Library = String
+type Index = Integer
+type PluginName = String
+type PluginID = (Library, Index, PluginName)
 
--- PluginLoader.h: PluginLoader::listPlugings
-listPlugins :: [PluginKey]
-listPlugins = undefined
+listLibraries :: IO [Library]
+listLibraries = do
+  count <- c_getLibraryCount
+  traverse (\n -> c_getLibraryName n >>= peekCString) [0..(count - 1)]
 
--- PluginLoader.h: PluginLoader::composePluginKey
-pluginKey :: FilePath -> String -> PluginKey
-pluginKey = undefined
+listPluginsOfLib :: Ptr VHLibrary -> Library -> IO [PluginID]
+listPluginsOfLib libPtr libName = do
+  let pluginId n = do
+        pdPtr <- c_getPluginDescriptor libPtr (fromInteger n)
+        pd <- peek pdPtr
+        return $ (libName, n, pldName pd)
+  count <- c_getPluginCount libPtr
+  traverse pluginId [0..((toInteger count) - 1)]
 
--- PluginLoader.h: PluginLoader::getLibraryPathForPlugin
-pluginPath :: PluginKey -> FilePath
-pluginPath = undefined
+listPlugins :: IO [[PluginID]]
+listPlugins = do
+  let withLib n f = bracket
+                    (do { l <- c_loadLibrary n; return l })
+                    (\l -> c_unloadLibrary l)
+                    (\l -> (f n l))
+      findPluginIDs n l = do
+        c <- c_getPluginCount l
+        libName <- (c_getLibraryName n) >>= peekCString
+        listPluginsOfLib l libName
 
--- PluginLoader.h: PluginLoader::getPluginCategory
-pluginCategory :: PluginKey -> PluginCategory
-pluginCategory = undefined
+  count <- c_getLibraryCount
+  traverse (\n -> withLib n findPluginIDs) [0..(count - 1)]
 
--- PluginLoader.h: PluginLoader::loadPlugin
-loadPlugin :: PluginKey -> Float -> AdaptorFlag -> Maybe Plugin
+loadPlugin :: Library -> Index -> IO (Maybe HVPluginDescriptorPtr)
 loadPlugin = undefined

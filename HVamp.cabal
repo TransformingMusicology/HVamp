@@ -10,7 +10,8 @@ cabal-version: >= 1.8
 library
   build-depends: base, vector
   exposed-modules: HVamp
-  other-modules: Vamp
+  other-modules: Vamp, Host
   hs-source-dirs: src
-  include-dirs: include
-  ghc-options: -Wall
+  extra-libraries: stdc++, dl, vamp-hostsdk
+  ghc-options: -debug -Wall
+  cc-options: -ggdb -O0
