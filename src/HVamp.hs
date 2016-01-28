@@ -18,7 +18,10 @@
 -- You should have received a copy of the GNU General Public License
 -- along with HVamp. If not, see <http://www.gnu.org/licenses/>.
 
-module HVamp where
+module HVamp ( listLibraries
+             , listPlugins
+             , listPluginsOfLib
+             , loadPlugin ) where
 
 import Control.Applicative
 import Control.Exception (bracket)

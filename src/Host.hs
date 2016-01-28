@@ -19,7 +19,14 @@
 -- along with HVamp. If not, see <http://www.gnu.org/licenses/>.
 
 {-# LANGUAGE ForeignFunctionInterface #-}
-module Host where
+module Host ( VHLibrary
+            , c_getLibraryCount
+            , c_getLibraryName
+            , c_getLibraryIndex
+            , c_loadLibrary
+            , c_getPluginCount
+            , c_getPluginDescriptor
+            , c_unloadLibrary ) where
 
 import Foreign
 import Foreign.C.String
