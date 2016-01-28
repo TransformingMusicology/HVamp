@@ -21,7 +21,7 @@
 module HVamp ( listLibraries
              , listPlugins
              , listPluginsOfLib
-             , loadPlugin ) where
+             , loadMaybePlugin ) where
 
 import Control.Applicative
 import Control.Exception (bracket)
@@ -65,5 +65,17 @@ listPlugins = do
   count <- c_getLibraryCount
   traverse (\n -> withLib n findPluginIDs) [0..(count - 1)]
 
-loadPlugin :: Library -> Index -> IO (Maybe HVPluginDescriptorPtr)
-loadPlugin = undefined
+loadMaybePluginDescPtr :: PluginID -> IO (Maybe HVPluginDescriptorPtr)
+loadMaybePluginDescPtr (libName, pluginIdx, _) = do
+  libNameC <- newCString libName
+  libIdx   <- c_getLibraryIndex libNameC
+  if libIdx < 0 then return Nothing else do
+    libPtr <- c_loadLibrary libIdx
+    if libPtr == nullPtr then return Nothing else do
+      plgPtr <- c_getPluginDescriptor libPtr (fromIntegral pluginIdx)
+      return $ if plgPtr /= nullPtr then Just plgPtr else Nothing
+
+loadMaybePlugin :: PluginID -> IO (Maybe HVPluginDescriptor)
+loadMaybePlugin plgId = loadMaybePluginDescPtr plgId >>= peekDescriptor
+  where peekDescriptor (Just ptr) = do { d <- peek ptr; return (Just d) }
+        peekDescriptor Nothing    = return Nothing
