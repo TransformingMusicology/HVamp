@@ -28,6 +28,7 @@ module HVamp ( listLibraries
 
 import Control.Applicative
 import Control.Exception (bracket)
+import Data.Maybe (maybe)
 import Data.Traversable (traverse)
 import Foreign
 import Foreign.C.String
@@ -96,8 +97,7 @@ instantiateMaybePluginFromDesc plgDescPtr sampleRate = do
   if hndl /= nullPtr then return (Just hndl) else return Nothing
 
 maybeM :: (Monad m) => b -> (a -> m b) -> Maybe a -> m b
-maybeM _   f (Just x) = f x
-maybeM def _ Nothing  = return def
+maybeM def f = maybe (return def) f
 
 maybeM_ :: (Monad m) => (a -> m ()) -> Maybe a -> m ()
 maybeM_ f x = maybeM () f x
