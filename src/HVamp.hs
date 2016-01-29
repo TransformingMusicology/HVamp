@@ -21,13 +21,16 @@
 module HVamp ( listLibraries
              , listPlugins
              , listPluginsOfLib
-             , loadMaybePlugin ) where
+             , loadMaybePlugin
+             , instantiateMaybePlugin
+             , withMaybePluginHandle ) where
 
 import Control.Applicative
 import Control.Exception (bracket)
 import Data.Traversable (traverse)
 import Foreign
 import Foreign.C.String
+import Foreign.C.Types (CFloat(..))
 import Foreign.Storable (peek)
 import Host
 import Vamp
@@ -78,3 +81,33 @@ loadMaybePlugin :: PluginID -> IO (Maybe HVPluginDescriptor)
 loadMaybePlugin plgId = loadMaybePluginDescPtr plgId >>= peekDescriptor
   where peekDescriptor (Just ptr) = do { d <- peek ptr; return (Just d) }
         peekDescriptor Nothing    = return Nothing
+
+instantiateMaybePlugin :: PluginID -> Float -> IO (Maybe HVPluginHandle)
+instantiateMaybePlugin plgId sampleRate = loadMaybePluginDescPtr plgId >>= peekDescriptor
+  where
+    peekDescriptor (Just ptr) = instantiateMaybePluginFromDesc ptr sampleRate
+    peekDescriptor Nothing    = return Nothing
+
+instantiateMaybePluginFromDesc :: HVPluginDescriptorPtr -> Float -> IO (Maybe HVPluginHandle)
+instantiateMaybePluginFromDesc plgDescPtr sampleRate = do
+  desc <- peek plgDescPtr
+  hndl <- pluginInstantiate plgDescPtr desc (CFloat sampleRate)
+  if hndl /= nullPtr then return (Just hndl) else return Nothing
+
+maybeM :: (Monad m) => b -> (a -> m b) -> Maybe a -> m b
+maybeM _   f (Just x) = f x
+maybeM def _ Nothing  = return def
+
+maybeM_ :: (Monad m) => (a -> m ()) -> Maybe a -> m ()
+maybeM_ f x = maybeM () f x
+
+withMaybePluginHandle :: PluginID -> Float -> (Maybe HVPluginDescriptor -> Maybe HVPluginHandle -> IO (Maybe a)) -> IO (Maybe a)
+withMaybePluginHandle plgId sampleRate f = loadMaybePluginDescPtr plgId >>= peekDescriptor
+  where
+    peekDescriptor (Just ptr) = do
+      desc <- peek ptr
+      bracket
+        (instantiateMaybePluginFromDesc ptr sampleRate)
+        (maybeM_ (pluginCleanup desc))
+        (f $ Just desc)
+    peekDescriptor Nothing = return Nothing

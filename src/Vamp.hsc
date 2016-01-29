@@ -548,8 +548,8 @@ instance Storable HVPluginDescriptor where
 
   poke _ _ = error "Cannot poke a HVPluginDescriptor"
 
-pluginInstantiate :: HVPluginDescriptorPtr -> CFloat -> IO HVPluginHandle
-pluginInstantiate = undefined
+pluginInstantiate :: HVPluginDescriptorPtr -> HVPluginDescriptor -> CFloat -> IO HVPluginHandle
+pluginInstantiate descPtr (HVPluginDescriptor { pldInstantiate = instantiate }) sampleRate = instantiate descPtr sampleRate
 
 pluginCleanup :: HVPluginDescriptor -> HVPluginHandle -> IO ()
 pluginCleanup (HVPluginDescriptor { pldCleanup = cleanup }) = cleanup
