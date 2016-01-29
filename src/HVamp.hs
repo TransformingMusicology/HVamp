@@ -23,6 +23,7 @@ module HVamp ( listLibraries
              , listPluginsOfLib
              , loadMaybePlugin
              , instantiateMaybePlugin
+             , initialiseMaybePlugin
              , withMaybePluginHandle
              , withMaybePluginHandle_ ) where
 
@@ -95,6 +96,17 @@ instantiateMaybePluginFromDesc plgDescPtr sampleRate = do
   desc <- peek plgDescPtr
   hndl <- pluginInstantiate plgDescPtr desc (CFloat sampleRate)
   if hndl /= nullPtr then return (Just hndl) else return Nothing
+
+initialiseMaybePlugin :: HVPluginDescriptor -> Maybe HVPluginHandle -> Int -> Int -> Int -> IO Bool
+initialiseMaybePlugin _ Nothing _ _ _ = return False
+initialiseMaybePlugin desc (Just hndl) inputChannels stepSize blockSize = do
+  minCh <- fmap fromIntegral (pluginGetMinChannelCount desc hndl)
+  maxCh <- fmap fromIntegral (pluginGetMaxChannelCount desc hndl)
+  if inputChannels < minCh || inputChannels > maxCh
+    then fail $ "inputChannels out of range ([" ++ (show minCh) ++ ".." ++ (show maxCh) ++ "])"
+    else do
+      res <- pluginInitialise desc hndl (fromIntegral inputChannels) (fromIntegral stepSize) (fromIntegral blockSize)
+      return $ if res == 0 then False else True
 
 maybeM :: (Monad m) => b -> (a -> m b) -> Maybe a -> m b
 maybeM def f = maybe (return def) f
