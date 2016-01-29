@@ -23,7 +23,8 @@ module HVamp ( listLibraries
              , listPluginsOfLib
              , loadMaybePlugin
              , instantiateMaybePlugin
-             , withMaybePluginHandle ) where
+             , withMaybePluginHandle
+             , withMaybePluginHandle_ ) where
 
 import Control.Applicative
 import Control.Exception (bracket)
@@ -111,3 +112,10 @@ withMaybePluginHandle plgId sampleRate f = loadMaybePluginDescPtr plgId >>= peek
         (maybeM_ (pluginCleanup desc))
         (f $ Just desc)
     peekDescriptor Nothing = return Nothing
+
+withMaybePluginHandle_ :: PluginID -> Float -> (Maybe HVPluginDescriptor -> Maybe HVPluginHandle -> IO ()) -> IO ()
+withMaybePluginHandle_ plgId sampleRate f = withMaybePluginHandle plgId sampleRate discardRes >> return ()
+  where
+    discardRes d h = do
+      res <- f d h
+      return $ Just undefined
