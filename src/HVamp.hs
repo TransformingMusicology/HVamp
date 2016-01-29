@@ -58,7 +58,6 @@ listPlugins = do
                     (\l -> c_unloadLibrary l)
                     (\l -> (f n l))
       findPluginIDs n l = do
-        c <- c_getPluginCount l
         libName <- (c_getLibraryName n) >>= peekCString
         listPluginsOfLib l libName
 
