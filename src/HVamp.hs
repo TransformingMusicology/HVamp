@@ -23,6 +23,7 @@ module HVamp ( listLibraries
              , listPluginsOfLib
              , loadMaybePlugin
              , instantiateMaybePlugin
+             , initialiseMaybePluginP
              , initialiseMaybePlugin
              , withMaybePluginHandle
              , withMaybePluginHandle_ ) where
@@ -97,9 +98,9 @@ instantiateMaybePluginFromDesc plgDescPtr sampleRate = do
   hndl <- pluginInstantiate plgDescPtr desc (CFloat sampleRate)
   if hndl /= nullPtr then return (Just hndl) else return Nothing
 
-initialiseMaybePlugin :: HVPluginDescriptor -> Maybe HVPluginHandle -> Int -> Int -> Int -> IO Bool
-initialiseMaybePlugin _ Nothing _ _ _ = return False
-initialiseMaybePlugin desc (Just hndl) inputChannels stepSize blockSize = do
+initialiseMaybePluginP :: HVPluginDescriptor -> Maybe HVPluginHandle -> Int -> Int -> Int -> IO Bool
+initialiseMaybePluginP _ Nothing _ _ _ = return False
+initialiseMaybePluginP desc (Just hndl) inputChannels stepSize blockSize = do
   minCh <- fmap fromIntegral (pluginGetMinChannelCount desc hndl)
   maxCh <- fmap fromIntegral (pluginGetMaxChannelCount desc hndl)
   if inputChannels < minCh || inputChannels > maxCh
@@ -108,25 +109,32 @@ initialiseMaybePlugin desc (Just hndl) inputChannels stepSize blockSize = do
       res <- pluginInitialise desc hndl (fromIntegral inputChannels) (fromIntegral stepSize) (fromIntegral blockSize)
       return $ if res == 0 then False else True
 
+initialiseMaybePlugin :: HVPluginDescriptor -> Int -> Int -> Int -> Maybe HVPluginHandle -> IO (Maybe HVPluginHandle)
+initialiseMaybePlugin desc inputChannels stepSize blockSize hndl =
+  initialiseMaybePluginP desc hndl inputChannels stepSize blockSize >>= withP
+  where
+    withP True  = return hndl
+    withP False = return Nothing
+
 maybeM :: (Monad m) => b -> (a -> m b) -> Maybe a -> m b
 maybeM def f = maybe (return def) f
 
 maybeM_ :: (Monad m) => (a -> m ()) -> Maybe a -> m ()
 maybeM_ f x = maybeM () f x
 
-withMaybePluginHandle :: PluginID -> Float -> (Maybe HVPluginDescriptor -> Maybe HVPluginHandle -> IO (Maybe a)) -> IO (Maybe a)
-withMaybePluginHandle plgId sampleRate f = loadMaybePluginDescPtr plgId >>= peekDescriptor
+withMaybePluginHandle :: PluginID -> Float -> Int -> Int -> Int -> (Maybe HVPluginDescriptor -> Maybe HVPluginHandle -> IO (Maybe a)) -> IO (Maybe a)
+withMaybePluginHandle plgId sampleRate inputChannels stepSize blockSize f = loadMaybePluginDescPtr plgId >>= peekDescriptor
   where
     peekDescriptor (Just ptr) = do
       desc <- peek ptr
       bracket
-        (instantiateMaybePluginFromDesc ptr sampleRate)
+        (instantiateMaybePluginFromDesc ptr sampleRate >>= initialiseMaybePlugin desc inputChannels stepSize blockSize)
         (maybeM_ (pluginCleanup desc))
         (f $ Just desc)
     peekDescriptor Nothing = return Nothing
 
-withMaybePluginHandle_ :: PluginID -> Float -> (Maybe HVPluginDescriptor -> Maybe HVPluginHandle -> IO ()) -> IO ()
-withMaybePluginHandle_ plgId sampleRate f = withMaybePluginHandle plgId sampleRate discardRes >> return ()
+withMaybePluginHandle_ :: PluginID -> Float -> Int -> Int -> Int -> (Maybe HVPluginDescriptor -> Maybe HVPluginHandle -> IO ()) -> IO ()
+withMaybePluginHandle_ plgId sampleRate inputChannels stepSize blockSize f = withMaybePluginHandle plgId sampleRate inputChannels stepSize blockSize discardRes >> return ()
   where
     discardRes d h = do
       res <- f d h
