@@ -51,22 +51,25 @@ listLibraries = do
 
 listPluginsOfLib :: Ptr VHLibrary -> Library -> IO [PluginID]
 listPluginsOfLib libPtr libName = do
-  let pluginId n = do
-        pdPtr <- c_getPluginDescriptor libPtr (fromInteger n)
-        pd <- peek pdPtr
-        return $ (libName, n, pldName pd)
+  let
+    pluginId n = do
+      pdPtr <- c_getPluginDescriptor libPtr (fromInteger n)
+      pd <- peek pdPtr
+      return $ (libName, n, pldName pd)
   count <- c_getPluginCount libPtr
   traverse pluginId [0..((toInteger count) - 1)]
 
 listPlugins :: IO [[PluginID]]
 listPlugins = do
-  let withLib n f = bracket
-                    (do { l <- c_loadLibrary n; return l })
-                    (\l -> c_unloadLibrary l)
-                    (\l -> (f n l))
-      findPluginIDs n l = do
-        libName <- (c_getLibraryName n) >>= peekCString
-        listPluginsOfLib l libName
+  let
+    withLib n f =
+      bracket
+        (do { l <- c_loadLibrary n; return l })
+        (\l -> c_unloadLibrary l)
+        (\l -> (f n l))
+    findPluginIDs n l = do
+      libName <- (c_getLibraryName n) >>= peekCString
+      listPluginsOfLib l libName
 
   count <- c_getLibraryCount
   traverse (\n -> withLib n findPluginIDs) [0..(count - 1)]
@@ -83,8 +86,9 @@ loadMaybePluginDescPtr (libName, pluginIdx, _) = do
 
 loadMaybePlugin :: PluginID -> IO (Maybe HVPluginDescriptor)
 loadMaybePlugin plgId = loadMaybePluginDescPtr plgId >>= peekDescriptor
-  where peekDescriptor (Just ptr) = do { d <- peek ptr; return (Just d) }
-        peekDescriptor Nothing    = return Nothing
+  where
+    peekDescriptor (Just ptr) = do { d <- peek ptr; return (Just d) }
+    peekDescriptor Nothing    = return Nothing
 
 instantiateMaybePlugin :: PluginID -> Float -> IO (Maybe HVPluginHandle)
 instantiateMaybePlugin plgId sampleRate = loadMaybePluginDescPtr plgId >>= peekDescriptor
@@ -123,7 +127,8 @@ maybeM_ :: (Monad m) => (a -> m ()) -> Maybe a -> m ()
 maybeM_ f x = maybeM () f x
 
 withMaybePluginHandle :: PluginID -> Float -> Int -> Int -> Int -> (Maybe HVPluginDescriptor -> Maybe HVPluginHandle -> IO (Maybe a)) -> IO (Maybe a)
-withMaybePluginHandle plgId sampleRate inputChannels stepSize blockSize f = loadMaybePluginDescPtr plgId >>= peekDescriptor
+withMaybePluginHandle plgId sampleRate inputChannels stepSize blockSize f =
+  loadMaybePluginDescPtr plgId >>= peekDescriptor
   where
     peekDescriptor (Just ptr) = do
       desc <- peek ptr
@@ -134,7 +139,8 @@ withMaybePluginHandle plgId sampleRate inputChannels stepSize blockSize f = load
     peekDescriptor Nothing = return Nothing
 
 withMaybePluginHandle_ :: PluginID -> Float -> Int -> Int -> Int -> (Maybe HVPluginDescriptor -> Maybe HVPluginHandle -> IO ()) -> IO ()
-withMaybePluginHandle_ plgId sampleRate inputChannels stepSize blockSize f = withMaybePluginHandle plgId sampleRate inputChannels stepSize blockSize discardRes >> return ()
+withMaybePluginHandle_ plgId sampleRate inputChannels stepSize blockSize f =
+  withMaybePluginHandle plgId sampleRate inputChannels stepSize blockSize discardRes >> return ()
   where
     discardRes d h = do
       res <- f d h
