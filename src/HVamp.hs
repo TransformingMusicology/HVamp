@@ -64,9 +64,9 @@ listPlugins = do
   let
     withLib n f =
       bracket
-        (do { l <- c_loadLibrary n; return l })
-        (\l -> c_unloadLibrary l)
-        (\l -> (f n l))
+        (c_loadLibrary n)
+        c_unloadLibrary
+        (\l -> f n l)
     findPluginIDs n l = do
       libName <- (c_getLibraryName n) >>= peekCString
       listPluginsOfLib l libName
