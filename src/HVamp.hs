@@ -102,6 +102,12 @@ instantiateMaybePluginFromDesc plgDescPtr sampleRate = do
   hndl <- pluginInstantiate plgDescPtr desc (CFloat sampleRate)
   if hndl /= nullPtr then return (Just hndl) else return Nothing
 
+setMaybePluginHandleParams :: HVPluginDescriptor -> [(Int, Float)] -> Maybe HVPluginHandle -> IO (Maybe HVPluginHandle)
+setMaybePluginHandleParams _ _ Nothing = return Nothing
+setMaybePluginHandleParams desc params (Just hndl) = do
+  mapM_ (\(i, v) -> pluginSetParameter desc hndl (fromIntegral i) (realToFrac v)) params
+  return $ Just hndl
+
 initialiseMaybePluginP :: HVPluginDescriptor -> Maybe HVPluginHandle -> Int -> Int -> Int -> IO Bool
 initialiseMaybePluginP _ Nothing _ _ _ = return False
 initialiseMaybePluginP desc (Just hndl) inputChannels stepSize blockSize = do
@@ -126,21 +132,23 @@ maybeM def f = maybe (return def) f
 maybeM_ :: (Monad m) => (a -> m ()) -> Maybe a -> m ()
 maybeM_ f x = maybeM () f x
 
-withMaybePluginHandle :: PluginID -> Float -> Int -> Int -> Int -> (Maybe HVPluginDescriptor -> Maybe HVPluginHandle -> IO (Maybe a)) -> IO (Maybe a)
-withMaybePluginHandle plgId sampleRate inputChannels stepSize blockSize f =
+withMaybePluginHandle :: PluginID -> Float -> Int -> Int -> Int -> [(Int, Float)] -> (Maybe HVPluginDescriptor -> Maybe HVPluginHandle -> IO (Maybe a)) -> IO (Maybe a)
+withMaybePluginHandle plgId sampleRate inputChannels stepSize blockSize params f =
   loadMaybePluginDescPtr plgId >>= peekDescriptor
   where
     peekDescriptor (Just ptr) = do
       desc <- peek ptr
       bracket
-        (instantiateMaybePluginFromDesc ptr sampleRate >>= initialiseMaybePlugin desc inputChannels stepSize blockSize)
+        (instantiateMaybePluginFromDesc ptr sampleRate
+         >>= setMaybePluginHandleParams desc params
+         >>= initialiseMaybePlugin desc inputChannels stepSize blockSize)
         (maybeM_ (pluginCleanup desc))
         (f $ Just desc)
     peekDescriptor Nothing = return Nothing
 
-withMaybePluginHandle_ :: PluginID -> Float -> Int -> Int -> Int -> (Maybe HVPluginDescriptor -> Maybe HVPluginHandle -> IO ()) -> IO ()
-withMaybePluginHandle_ plgId sampleRate inputChannels stepSize blockSize f =
-  withMaybePluginHandle plgId sampleRate inputChannels stepSize blockSize discardRes >> return ()
+withMaybePluginHandle_ :: PluginID -> Float -> Int -> Int -> Int -> [(Int, Float)] -> (Maybe HVPluginDescriptor -> Maybe HVPluginHandle -> IO ()) -> IO ()
+withMaybePluginHandle_ plgId sampleRate inputChannels stepSize blockSize params f =
+  withMaybePluginHandle plgId sampleRate inputChannels stepSize blockSize params discardRes >> return ()
   where
     discardRes d h = do
       res <- f d h
