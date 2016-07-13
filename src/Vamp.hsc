@@ -39,14 +39,17 @@ module Vamp ( HVPluginHandle
             , pluginGetOutputDescriptor
             , pluginReleaseOutputDescriptor
             , pluginProcess
+            , pluginProcessVector
             , pluginGetRemainingFeatures
             , pluginReleaseFeatureSet
             )
        where
 
+import           Control.Monad (forM_)
 import           Data.Char (chr)
 import           Data.List (intercalate)
 import qualified Data.Vector.Storable as DV
+import qualified Data.Vector.Storable.Mutable as DVM
 import           Foreign
 import           Foreign.C.String
 import           Foreign.C.Types
@@ -147,7 +150,7 @@ type HVGetMaxChannelCountFun = (HVPluginHandle -> IO CUInt)
 type HVGetOutputCountFun = (HVPluginHandle -> IO CUInt)
 type HVGetOutputDescriptorFun = (HVPluginHandle -> CUInt -> IO HVOutputDescriptorPtr)
 type HVReleaseOutputDescriptorFun = (HVPluginHandle -> HVOutputDescriptorPtr -> IO ())
-type HVProcessFun = (HVPluginHandle -> Ptr CFloat -> CInt -> CInt -> IO HVFeatureListPtr)
+type HVProcessFun = (HVPluginHandle -> Ptr (Ptr CFloat) -> CInt -> CInt -> IO HVFeatureListPtr)
 type HVGetRemainingFeaturesFun = (HVPluginHandle -> IO HVFeatureListPtr)
 type HVReleaseFeatureSetFun = (HVPluginHandle -> IO ())
 
@@ -593,13 +596,14 @@ pluginGetOutputDescriptor (HVPluginDescriptor { pldGetOutputDescriptor = getOutp
 pluginReleaseOutputDescriptor :: HVPluginDescriptor -> HVPluginHandle -> HVOutputDescriptorPtr -> IO ()
 pluginReleaseOutputDescriptor (HVPluginDescriptor { pldReleaseOutputDescriptor = releaseOutputDescriptor }) = releaseOutputDescriptor
 
-pluginProcess :: HVPluginDescriptor -> HVPluginHandle -> Ptr CFloat -> CInt -> CInt -> IO HVFeatureListPtr
+pluginProcess :: HVPluginDescriptor -> HVPluginHandle -> Ptr (Ptr CFloat) -> CInt -> CInt -> IO HVFeatureListPtr
 pluginProcess (HVPluginDescriptor { pldProcess = process }) = process
 
--- pluginProcessVector :: HVPluginDescriptor -> HVPluginHandle -> DV.Vector (DV.Vector Float) -> CInt -> CInt -> IO HVFeatureListPtr
--- pluginProcessVector (HVPluginDescriptor { pldProcess = process }) plgH values sec nsec =
---   withForeignPtr valuesPtr (\ptr -> process plgH ptr sec nsec)
---   where (valuesPtr, length) = DV.unsafeToForeignPtr0 values
+pluginProcessVector :: HVPluginDescriptor -> HVPluginHandle -> [DV.Vector CFloat] -> CInt -> CInt -> IO HVFeatureListPtr
+pluginProcessVector (HVPluginDescriptor { pldProcess = process }) plgH buffers sec nsec = do
+  input <- DVM.new (length buffers)
+  forM_ (zip buffers [0..]) $ \(b, i) -> DV.unsafeWith b $ (\ptr -> DVM.unsafeWrite input i ptr)
+  DVM.unsafeWith input $ \ptr -> do process plgH ptr sec nsec
 
 pluginGetRemainingFeatures :: HVPluginDescriptor -> HVPluginHandle -> IO HVFeatureListPtr
 pluginGetRemainingFeatures (HVPluginDescriptor { pldGetRemainingFeatures = getRemainingFeatures }) = getRemainingFeatures
